@@ -1,0 +1,59 @@
+parameters:
+- name: acrServiceConnection
+  type: string
+- name: imageRepository
+  type: string
+- name: dockerfile
+  type: string
+- name: buildContext
+  type: string
+
+steps:
+- task: Docker@2
+  displayName: Sign in to ACR
+  inputs:
+    command: login
+    containerRegistry: ${{ parameters.acrServiceConnection }}
+
+- bash: |
+    set -euo pipefail
+    [[ "$ACR_HOST" =~ ^[a-z0-9-]+[.]azurecr[.]io$ ]]
+    image_repository="$ACR_HOST/$REPOSITORY"
+    image="$image_repository:$BUILD_BUILDID"
+    scratch=$(mktemp -d)
+    trap 'rm -rf "$scratch"' EXIT
+
+    docker build --pull --file "$DOCKERFILE" --tag "$image" "$BUILD_CONTEXT"
+    docker run --rm --read-only --tmpfs /tmp \
+      --mount "type=bind,source=$BUILD_SOURCESDIRECTORY/$BUILD_CONTEXT/test_app.py,target=/app/test_app.py,readonly" \
+      --env PYTHONDONTWRITEBYTECODE=1 "$image" python -m unittest -v test_app
+    docker save --output "$scratch/image.tar" "$image"
+    docker run --rm \
+      --mount "type=bind,source=$scratch,target=/scan,readonly" \
+      --mount type=volume,source=aks-operations-trivy-cache,target=/root/.cache/trivy \
+      aquasec/trivy:0.69.3@sha256:bcc376de8d77cfe086a917230e818dc9f8528e3c852f7b1aff648949b6258d1c \
+      image --input /scan/image.tar --scanners vuln,secret \
+      --severity HIGH,CRITICAL --exit-code 1 --no-progress
+    docker push "$image"
+    digest=$(docker image inspect --format '{{range .RepoDigests}}{{println .}}{{end}}' "$image" | grep -F "$image_repository@" | head -n 1)
+    [[ "$digest" =~ @sha256:[a-f0-9]{64}$ ]]
+
+    manifests="$BUILD_ARTIFACTSTAGINGDIRECTORY/manifests"
+    mkdir -p "$manifests"
+    cp application/k8s/*.yaml "$manifests/"
+    kubectl set image -f application/k8s/deployment.yaml --local \
+      aks-operations="$digest" -o yaml > "$manifests/deployment.yaml"
+    printf '%s\n' "$digest" > "$manifests/image-digest.txt"
+  displayName: Scan, push and render the immutable release
+  env:
+    ACR_HOST: $(ACR_LOGIN_SERVER)
+    REPOSITORY: ${{ parameters.imageRepository }}
+    DOCKERFILE: ${{ parameters.dockerfile }}
+    BUILD_CONTEXT: ${{ parameters.buildContext }}
+
+- task: Docker@2
+  displayName: Sign out of ACR
+  condition: always()
+  inputs:
+    command: logout
+    containerRegistry: ${{ parameters.acrServiceConnection }}

@@ -1,0 +1,45 @@
+trigger:
+  branches:
+    include:
+      - main
+
+pool:
+  name: AKS-Operations-Agents
+
+variables:
+- group: AKS-Operations-Variables
+
+stages:
+- stage: Build
+  displayName: Build image and manifests
+  jobs:
+  - job: DockerBuild
+    steps:
+    - checkout: self
+      persistCredentials: false
+    - template: templates/docker-build-image.yml
+      parameters:
+        acrServiceConnection: 'ACR-ServiceConnection'
+        imageRepository: 'aks-operations'
+        dockerfile: 'application/Dockerfile'
+        buildContext: 'application'
+    - publish: $(Build.ArtifactStagingDirectory)/manifests
+      artifact: manifests
+
+- stage: Deploy
+  displayName: Deploy to AKS
+  dependsOn: Build
+  condition: and(succeeded(), eq(variables['Build.SourceBranch'], 'refs/heads/main'))
+  jobs:
+  - deployment: DeployProduction
+    displayName: Deploy approved build to production
+    environment: production
+    strategy:
+      runOnce:
+        deploy:
+          steps:
+          - template: templates/deploy-aks.yml
+            parameters:
+              azureSubscription: 'AKS-Deploy-ServiceConnection'
+              resourceGroup: 'prod-aks-rg'
+              aksCluster: 'prod-aks'

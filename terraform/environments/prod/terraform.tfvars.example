@@ -1,0 +1,11 @@
+subscription_id = "00000000-0000-0000-0000-000000000000"
+location        = "Central India"
+environment     = "prod"
+
+ado_acr_service_principal_object_id = "00000000-0000-0000-0000-000000000000"
+aks_admin_group_object_ids         = ["00000000-0000-0000-0000-000000000000"]
+registry_name                     = "replacewithuniqueacr"
+key_vault_name                    = "replace-with-unique-kv"
+azure_devops_org_url              = "https://dev.azure.com/your-organization"
+agent_ssh_public_key              = "ssh-ed25519 REPLACE_WITH_YOUR_PUBLIC_KEY"
+# agent_ssh_source                 = "203.0.113.10/32"

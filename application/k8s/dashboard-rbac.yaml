@@ -1,0 +1,59 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+
+metadata:
+  name: aks-operations-dashboard-reader
+
+rules:
+
+  # Pods and Services
+  - apiGroups: [""]
+    resources:
+      - pods
+      - services
+    verbs:
+      - get
+      - list
+
+  # Deployments
+  - apiGroups:
+      - apps
+    resources:
+      - deployments
+    verbs:
+      - get
+      - list
+
+  # Ingress
+  - apiGroups:
+      - networking.k8s.io
+    resources:
+      - ingresses
+    verbs:
+      - get
+      - list
+
+
+---
+
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+
+metadata:
+  name: aks-operations-dashboard-reader
+
+roleRef:
+
+  apiGroup: rbac.authorization.k8s.io
+
+  kind: Role
+
+  name: aks-operations-dashboard-reader
+
+subjects:
+
+  - kind: ServiceAccount
+
+    name: aks-operations-sa
+
+    namespace: aks-operations

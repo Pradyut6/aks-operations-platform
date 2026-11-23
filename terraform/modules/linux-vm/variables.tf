@@ -1,0 +1,42 @@
+variable "vm_name" {}
+
+variable "location" {}
+
+variable "resource_group_name" {}
+
+variable "subnet_id" {}
+
+variable "vm_size" {}
+
+variable "admin_username" {}
+
+variable "public_key" {}
+
+variable "allowed_ssh_ip" {}
+
+variable "tags" {
+  description = "Tags applied to the VM resources"
+  type        = map(string)
+  default     = {}
+}
+
+variable "identity_ids" {
+  type    = list(string)
+  default = []
+}
+
+variable "agent_version" {
+  type = string
+}
+
+variable "agent_package" {
+  type = string
+}
+
+variable "ado_org_url" {
+  type = string
+}
+
+variable "bootstrap_vault_name" {
+  type = string
+}

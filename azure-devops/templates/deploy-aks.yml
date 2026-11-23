@@ -1,0 +1,39 @@
+parameters:
+- name: azureSubscription
+  type: string
+- name: resourceGroup
+  type: string
+- name: aksCluster
+  type: string
+
+steps:
+- task: AzureCLI@2
+  displayName: Apply approved manifests and verify rollout
+  inputs:
+    azureSubscription: ${{ parameters.azureSubscription }}
+    scriptType: bash
+    scriptLocation: inlineScript
+    inlineScript: |
+      set -euo pipefail
+      export KUBECONFIG
+      KUBECONFIG=$(mktemp)
+      trap 'rm -f "$KUBECONFIG"' EXIT
+      az aks get-credentials \
+        --resource-group "$AKS_RESOURCE_GROUP" \
+        --name "$AKS_CLUSTER" \
+        --file "$KUBECONFIG" \
+        --format exec \
+        --overwrite-existing
+      kubelogin convert-kubeconfig -l azurecli
+
+      cd "$(Pipeline.Workspace)/manifests"
+      digest=$(cat image-digest.txt)
+      [[ "$digest" =~ ^[a-z0-9-]+[.]azurecr[.]io/.+@sha256:[a-f0-9]{64}$ ]]
+      grep -Fq "$digest" deployment.yaml
+
+      kubectl -n aks-operations apply -f .
+      kubectl -n aks-operations rollout status deployment/aks-operations --timeout=180s
+      kubectl -n aks-operations get deployment aks-operations
+  env:
+    AKS_RESOURCE_GROUP: ${{ parameters.resourceGroup }}
+    AKS_CLUSTER: ${{ parameters.aksCluster }}
